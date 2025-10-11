@@ -1,6 +1,6 @@
 # LongProc: Benchmarking Long-Context Language Models on Long Procedural Generation
 
-[[Paper](https://arxiv.org/pdf/2501.05414)]
+[[COLM 2025 Paper](https://arxiv.org/pdf/2501.05414)]
 
 **LongProc** (**Long Proc**edural Generation) is a benchmark that evaluates long-context LLMs through long procedural generation, which requires models to follow specified procedures and generate structured outputs. See examples tasks below.
 
@@ -52,10 +52,10 @@ For questions, feel free to open issues or email `xi.ye@princeton.edu`.
 ## References
 ```bibtex
 # Dataset
-@article{ye25longproc,
+@inproceedings{ye25longproc,
     title={LongProc: Benchmarking Long-Context Language Models on Long Procedural Generation},
     author={Ye, Xi and Yin, Fangcong and He, Yinghui and Zhang, Joie and Yen, Howard and Gao, Tianyu and Durrett, Greg and Chen, Danqi},
-    journal={arXiv preprint},
+    journal={Conference on Language Modeling},
     year={2025}
 }
 
