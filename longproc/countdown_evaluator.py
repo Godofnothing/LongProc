@@ -209,7 +209,10 @@ def evaluate_countdown_final_solution(nums: list, target: int, solution: str) ->
     for line in lines:
         try:
             correct, a, b, c, op = _parse_line(line)
+        # Catch malformed equation lines: ValueError (bad format) and SyntaxError (invalid expression)
         except ValueError:
+            return False
+        except SyntaxError:
             return False
         if not correct:
             return False
