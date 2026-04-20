@@ -1,6 +1,7 @@
 import os
 import argparse
 import random
+import json
 
 from longproc.longproc_data import load_longproc_data
 from tqdm import tqdm
@@ -8,6 +9,13 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 from opencompass.models import LlamaShadowKV, LlamaYaShadowKV, Qwen3ShadowKV, HuggingFacewithChatTemplate
+
+
+if "NV_YT_OPERATION_ID" in os.environ:
+    import nirvana_dl
+    has_nirvana_dl = True
+else:
+    has_nirvana_dl = False
 
 
 def str2bool(v: str) -> bool:
@@ -103,7 +111,7 @@ def _parse_args():
     )
 
     parser.add_argument("--test_loading", action="store_true", help="Test loading data")
-
+    parser.add_argument("--checkpoint_dir", type=str, default="./output", help="Directory to save/resume checkpoints")
 
     return parser.parse_args()
 
@@ -168,6 +176,28 @@ def build_model(args):
         )
     
 
+def _checkpoint_path(args) -> str:
+    model_tag = os.path.basename(args.model_path.rstrip("/")) if args.model_path else "unknown"
+    name = f"{args.dataset}__{model_tag}__seed{args.seed}"
+    if args.n_samples is not None:
+        name += f"__n{args.n_samples}"
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
+    return os.path.join(args.checkpoint_dir, f"{name}.checkpoint.json")
+
+
+def _load_checkpoint(path: str):
+    if not os.path.exists(path):
+        return [], 0
+    with open(path, "r") as f:
+        data = json.load(f)
+    return data["eval_metrics"], data["next_index"]
+
+
+def _save_checkpoint(path: str, eval_metrics: list, next_index: int):
+    with open(path, "w") as f:
+        json.dump({"eval_metrics": eval_metrics, "next_index": next_index}, f)
+
+
 def query_opencompass(model: nn.Module, user_prompt: str, max_tokens: int) -> str:
     generated_text = model.generate([user_prompt], max_out_len=max_tokens)[0]
 
@@ -198,14 +228,21 @@ def main():
     if args.n_samples is not None:
         dataset = dataset[:args.n_samples]
 
+    checkpoint_path = _checkpoint_path(args)
+    eval_metrics, start_index = _load_checkpoint(checkpoint_path)
+    if start_index > 0:
+        print(f"Resuming from checkpoint: {start_index}/{len(dataset)} samples already done.")
+
     # Load model
     model = build_model(args)
 
-    eval_metrics = []
     num_inspect = 3
-    for i, d in tqdm(list(enumerate(dataset[:args.n_samples]))):
+    for i, d in tqdm(list(enumerate(dataset)), initial=start_index, total=len(dataset)):
+        if i < start_index:
+            continue
+
         if i < num_inspect:
-            print(f"Sample {i+1}/{args.n_samples}")
+            print(f"Sample {i+1}/{len(dataset)}")
             print(f"Prompt: {d['input_prompt']}")
             print(f"Reference: {d['reference_output']}")
 
@@ -217,9 +254,14 @@ def main():
             print(f"Metrics: {metrics}")
             print(f"Additional info: {additional_info}")
         eval_metrics.append(metrics)
+        _save_checkpoint(checkpoint_path, eval_metrics, i + 1)
 
-    for k, v in metrics.items():
-        print(f"{k}: {sum([m[k] for m in eval_metrics])/len(eval_metrics)}")
+        if has_nirvana_dl:
+            nirvana_dl.snapshot.dump_snapshot()
+
+    if eval_metrics:
+        for k in eval_metrics[0].keys():
+            print(f"{k}: {sum(m[k] for m in eval_metrics) / len(eval_metrics)}")
 
 if __name__ == '__main__':
     main()
